@@ -1,10 +1,11 @@
 /**
- * Script exécuté en local uniquement (npm run seed depuis /admin), via Admin SDK.
+ * Script exécuté en local ou via CI (npm run seed depuis /admin), via Admin SDK.
  * Peuple Firestore avec des données de démonstration cohérentes avec le schéma
  * documenté dans docs/ARCHITECTURE.md. Toutes les images utilisent des URLs
  * externes (Unsplash), conformément à la contrainte "pas de Firebase Storage".
  */
-import { adminDb, grantAdminRole } from "../lib/firebaseAdmin";
+import { getAuth } from "firebase-admin/auth";
+import { adminApp, adminDb, grantAdminRole } from "../lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 
 async function seedCategories() {
@@ -123,15 +124,21 @@ async function seedAdminAccount() {
     console.log("ℹ Aucun email fourni — étape 'npm run seed -- admin@exemple.fr' ignorée pour le rôle admin.");
     return;
   }
-  const user = await adminDb.app.options.projectId
-    ? await (await import("firebase-admin/auth")).getAuth().getUserByEmail(email)
-    : null;
-  if (!user) {
-    console.log(`✘ Aucun utilisateur Firebase Auth trouvé pour ${email}. Créez-le d'abord dans la console Firebase.`);
-    return;
+
+  try {
+    const auth = getAuth(adminApp);
+    const user = await auth.getUserByEmail(email);
+
+    if (!user) {
+      console.log(`✘ Aucun utilisateur Firebase Auth trouvé pour ${email}. Créez-le d'abord dans la console Firebase.`);
+      return;
+    }
+
+    await grantAdminRole(user.uid);
+    console.log(`✔ Rôle admin attribué à ${email}`);
+  } catch (error) {
+    console.error(`✘ Erreur lors de la récupération de l'utilisateur ${email} :`, error);
   }
-  await grantAdminRole(user.uid);
-  console.log(`✔ Rôle admin attribué à ${email}`);
 }
 
 async function main() {
@@ -147,3 +154,4 @@ main().catch((err) => {
   console.error("Erreur pendant le seed :", err);
   process.exit(1);
 });
+    
