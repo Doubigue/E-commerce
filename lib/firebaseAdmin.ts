@@ -8,7 +8,9 @@ import { getAuth } from "firebase-admin/auth";
 // que dans .env.local, jamais commit, jamais buildée sur Vercel/Netlify.
 
 function getAdminApp(): App {
-  if (getApps().length) return getApps()[0];
+  if (getApps().length > 0) {
+    return getApps()[0];
+  }
 
   return initializeApp({
     credential: cert({
@@ -20,8 +22,12 @@ function getAdminApp(): App {
   });
 }
 
-export const adminDb = getFirestore(getAdminApp());
-export const adminAuth = getAuth(getAdminApp());
+// Export de l'application Firebase Admin
+export const adminApp = getAdminApp();
+
+// Export des services Firestore et Auth réutilisables
+export const adminDb = getFirestore(adminApp);
+export const adminAuth = getAuth(adminApp);
 
 /**
  * Attribue le rôle admin à un utilisateur via Custom Claims.
@@ -29,4 +35,8 @@ export const adminAuth = getAuth(getAdminApp());
  */
 export async function grantAdminRole(uid: string) {
   await adminAuth.setCustomUserClaims(uid, { role: "admin" });
+  await adminDb.collection("users").doc(uid).set(
+    { role: "admin", isAdmin: true },
+    { merge: true }
+  );
 }
